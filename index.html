@@ -1,20 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Chatbot Inbox</title>
-		<link rel="icon" type="image/png" href="robot-face-icon.png" />
-		<link rel="preconnect" href="https://fonts.googleapis.com" />
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-		<link
-			href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap"
-			rel="stylesheet"
-		/>
-	</head>
-	<body class="antialiased">
-		<noscript>You need to enable JavaScript to run this app.</noscript>
-		<div id="app"></div>
-		<script type="module" src="/src/index.tsx"></script>
-	</body>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chatbot VLV-VEDUC</title>
+    <link rel="icon" type="image/png" href="robot-face-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet"
+    />
+    <style>
+        /* Estilo do cabeçalho para tornar mais compacto e agradável */
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Centraliza horizontalmente */
+            background-color: #6a0dad; /* Fundo roxo com tom mais suave */
+            padding: 10px 20px; /* Ajusta o espaçamento interno */
+            border-bottom: 4px solid #5e0ca1; /* Adiciona uma borda inferior para destaque */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Sombra leve para efeito de elevação */
+        }
+
+        /* Estilo do logo */
+        .logo {
+            height: 40px; /* Diminui a altura do logo para torná-lo mais proporcional */
+        }
+
+        /* Responsividade para telas menores */
+        @media (max-width: 600px) {
+            .logo {
+                height: 35px; /* Ajusta o tamanho do logo para telas pequenas */
+            }
+            .header-container {
+                padding: 8px 15px; /* Ajusta o padding para telas menores */
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div class="header-container">
+        <img src="https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=414,fit=crop,q=95/Yyv7aOk2ByFveyrm/logocerta-Aq2o8LokE3TRO3Oq.png" alt="Logo" class="logo"/> 
+    </div>
+    <div id="app"></div>
+    <script type="module" src="/src/index.tsx"></script>
+</body>
 </html>

@@ -13,10 +13,20 @@ import {
 	clearStoredCredentials,
 	getStoredCredentials,
 } from '../services/storage';
+import { Contacts } from '../components/Contacts';
+
+interface Contact {
+  id: string;
+  name: string;
+  phone?: string;
+  about?: string;
+}
 
 export interface ConversationWithMessages extends Conversation {
 	messages: Message[];
 	nextMessagesToken?: string;
+	userName?: string;
+	userId?: string;
 }
 
 export const Dashboard = () => {
@@ -36,21 +46,120 @@ export const Dashboard = () => {
 	const [nextConversationsToken, setNextConversationsToken] =
 		useState<string>();
 
+	const [contacts, setContacts] = useState<Contact[]>([]);
+
 	const { botpressClient, createClient, deleteClient } = useBotpressClient();
+
+	const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+
+	const [isLoadingContacts, setIsLoadingContacts] = useState(true);
 
 	function clearsCredentialsAndClient() {
 		deleteClient();
-
 		clearStoredCredentials();
-		// window.location.reload();
 	}
+
+	const addContact = (contact: Contact) => {
+		setContacts((prevContacts) => {
+			if (prevContacts.find((c) => c.id === contact.id)) {
+				return prevContacts;
+			}
+			return [...prevContacts, contact];
+		});
+	};
+
+	const refreshConversations = async () => {
+		if (!botpressClient) return;
+
+		try {
+			console.log('Verificando atualizações...');
+			const getConversations = await listConversationsWithMessages(
+				botpressClient,
+				undefined,
+				true
+			);
+
+			let updatedConversations: ConversationWithMessages[] =
+				getConversations.conversations as ConversationWithMessages[];
+
+			// Verifica se há mudanças nas conversas
+			const hasChanges = updatedConversations.some((updatedConvo) => {
+				const existingConvo = conversationList.find(convo => convo.id === updatedConvo.id);
+				return !existingConvo || existingConvo.messages.length !== updatedConvo.messages.length;
+			});
+
+			if (hasChanges) {
+				setIsLoadingContacts(true);
+				console.log('Atualizando conversas e contatos...');
+
+				const newContacts: Contact[] = [];
+
+				for (let convo of updatedConversations) {
+					const incomingMessage = convo.messages
+						.slice()
+						.reverse()
+						.find((msg) => msg.direction === 'incoming');
+
+					if (incomingMessage && incomingMessage.userId) {
+						try {
+							const user = await botpressClient.getUser({
+								id: incomingMessage.userId,
+							});
+							convo.userName =
+								user.user.tags['whatsapp:name'] ||
+								user.user.tags['name'] ||
+								'Usuário sem nome';
+							convo.userId = incomingMessage.userId;
+							newContacts.push({
+								id: incomingMessage.userId,
+								name: convo.userName,
+								phone: user.user.tags['whatsapp:userId'],
+								about: user.user.tags['whatsapp:about'] || undefined,
+							});
+						} catch (error: any) {
+							console.log(
+								`Não foi possível buscar o nome do usuário com ID ${incomingMessage.userId}`
+							);
+							convo.userName = 'Usuário sem nome';
+							convo.userId = undefined;
+						}
+					} else {
+						convo.userName = 'Usuário sem nome';
+						convo.userId = undefined;
+					}
+				}
+
+				setConversationList(updatedConversations);
+				setNextConversationsToken(getConversations.nextConversationsToken);
+				setContacts(newContacts);
+			} else {
+				console.log('Nenhuma atualização necessária.');
+			}
+		} catch (error: any) {
+			console.log('Erro ao atualizar conversas:', JSON.stringify(error));
+		} finally {
+			setIsLoadingContacts(false);
+		}
+	};
+
+	useEffect(() => {
+		if (botpressClient) {
+			const interval = setInterval(refreshConversations, 15000); // 15 segundos
+			setAutoRefreshInterval(interval);
+
+			return () => {
+				if (autoRefreshInterval) {
+					clearInterval(autoRefreshInterval);
+				}
+			};
+		}
+	}, [botpressClient]);
 
 	useEffect(() => {
 		if (!botpressClient) {
 			try {
 				const credentials = getStoredCredentials();
 
-				// if there are credentials saved in the Local Storage, decrypts and creates the client
 				if (credentials) {
 					createClient(
 						credentials.token,
@@ -65,72 +174,16 @@ export const Dashboard = () => {
 				}
 			} catch (error: any) {
 				toast("Couldn't start the app");
-
 				toast.error(error.message || error);
 			}
 		} else {
-			// if there are conversations already, returns
-			if (conversationList.length > 0) {
-				console.log("There's already conversations loaded");
-				return;
-			} else {
-				console.log("There's no conversations loaded");
+			if (conversationList.length === 0) {
+				refreshConversations();
 			}
 
-			// if there is a client, loads the conversations
+			// Carregar informações do bot
 			(async () => {
 				try {
-					setIsLoadingConversations(true);
-
-					console.log('LOADING CONVERSATIONS');
-
-					const getConversations =
-						await listConversationsWithMessages(
-							botpressClient,
-							undefined,
-							true
-						);
-
-					setConversationList(
-						getConversations.conversations as ConversationWithMessages[]
-					);
-
-					setNextConversationsToken(
-						getConversations.nextConversationsToken
-					);
-				} catch (error: any) {
-					console.log(
-						'ERROR ON GETTING CONVERSATIONS : ',
-						JSON.stringify(error)
-					);
-
-					if (error.code === 429) {
-						toast(
-							'You have reached the limit of requests to the Botpress API... Please try again later'
-						);
-					}
-
-					toast.error("Couldn't load older conversations");
-				} finally {
-					setIsLoadingConversations(false);
-				}
-
-				// const retriable = await pRetry( (func) => {
-				// 	try {
-				// 		func
-				// 	} catch (error) {
-				// 		if (error.code !== 429)
-				// 		{
-				// 			throw new AbortError
-				// 		}
-				// 		throw error
-				// 	}
-				// },{onFailedAttempt: (error) => {
-				// 	throw error
-				// },retries:5})
-
-				try {
-					// tries to get the bot name
 					if (botInfo.id) {
 						const getBot = await botpressClient.getBot({
 							id: botInfo.id,
@@ -143,7 +196,6 @@ export const Dashboard = () => {
 					}
 				} catch (error) {
 					console.log(JSON.stringify(error));
-
 					toast.error("Couldn't load bot info");
 				}
 			})();
@@ -163,14 +215,52 @@ export const Dashboard = () => {
 				true
 			);
 
-			setConversationList((previousConversations) => {
-				return [
-					...previousConversations,
-					...(getConversations.conversations as ConversationWithMessages[]),
-				];
-			});
+			let updatedConversations: ConversationWithMessages[] =
+				getConversations.conversations as ConversationWithMessages[];
 
-			setNextConversationsToken(getConversations.nextConversationsToken);
+			for (let convo of updatedConversations) {
+				const incomingMessage = convo.messages
+					.slice()
+					.reverse()
+					.find((msg) => msg.direction === 'incoming');
+
+				if (incomingMessage && incomingMessage.userId) {
+					try {
+						const user = await botpressClient.getUser({
+							id: incomingMessage.userId,
+						});
+						convo.userName =
+							user.user.tags['whatsapp:name'] ||
+							user.user.tags['name'] ||
+							'Usuário sem nome';
+						convo.userId = incomingMessage.userId;
+						addContact({
+							id: incomingMessage.userId,
+							name: convo.userName,
+							phone: user.user.tags['whatsapp:userId'],
+							about: user.user.tags['whatsapp:about'] || undefined,
+						});
+					} catch (error: any) {
+						console.log(
+							`Não foi possível buscar o nome do usuário com ID ${incomingMessage.userId}`
+						);
+						convo.userName = 'Usuário sem nome';
+						convo.userId = undefined;
+					}
+				} else {
+					convo.userName = 'Usuário sem nome';
+					convo.userId = undefined;
+				}
+			}
+
+			setConversationList((prevConversations) => [
+				...prevConversations,
+				...updatedConversations,
+			]);
+
+			setNextConversationsToken(
+				getConversations.nextConversationsToken
+			);
 		} catch (error: any) {
 			console.log(JSON.stringify(error));
 
@@ -186,29 +276,34 @@ export const Dashboard = () => {
 		}
 	}
 
+	const handleSelectContact = (contactId: string) => {
+		const conversation = conversationList.find(convo => convo.userId === contactId);
+		if (conversation) {
+			setSelectedConversation(conversation);
+		} else {
+			toast.error("Conversa não encontrada para este contato");
+		}
+	};
+
 	return botpressClient ? (
 		<div className="flex flex-col h-screen overflow-hidden bg-zinc-100 text-gray-800">
-			{/* HEADER */}
 			<Header
 				handleLogout={clearsCredentialsAndClient}
 				botName={botInfo.name}
 				className="flex-shrink-0 h-14"
 			/>
-			{/* CONVERSATIONS */}
 			<div className="mx-2 mb-2 gap-2 flex overflow-hidden h-full">
 				<div className="flex flex-col gap-2 w-1/4">
-					{/* CONVERSATION LIST */}
 					<aside className="w-full flex-col flex flex-1 rounded-md border border-zinc-200 overflow-auto">
 						<ConversationList
 							conversations={conversationList}
-							onSelectConversation={(
-								conversation: ConversationWithMessages
-							) => setSelectedConversation(conversation)}
+							contacts={contacts} // Adicionando a lista de contatos
+							onSelectConversation={(conversation: ConversationWithMessages) =>
+								setSelectedConversation(conversation)
+							}
 							selectedConversationId={selectedConversation?.id}
 							loadOlderConversations={loadOlderConversations}
-							hasMoreConversations={
-								nextConversationsToken ? true : false
-							}
+							hasMoreConversations={nextConversationsToken ? true : false}
 							className="bg-white"
 						/>
 
@@ -219,9 +314,9 @@ export const Dashboard = () => {
 							</div>
 						)}
 					</aside>
+					<Contacts contacts={contacts} onSelectContact={handleSelectContact} isLoading={isLoadingContacts} />
 				</div>
 
-				{/* CONVERSATION DETAILS */}
 				<div className="flex w-3/4 h-full">
 					{selectedConversation ? (
 						<ConversationDetails
@@ -249,9 +344,6 @@ export const Dashboard = () => {
 					)}
 				</div>
 			</div>
-			{/* <div className="m-2">
-				<Disclaimer />
-			</div> */}
 		</div>
 	) : (
 		<LoginPage clearsCredentialsAndClient={clearsCredentialsAndClient} />

@@ -4,8 +4,16 @@ import { ConversationWithMessages } from '../pages/Dashboard';
 import { LoadingAnimation } from './interface/Loading';
 import { useRef } from 'react';
 
+interface Contact {
+	id: string;
+	name: string;
+	phone?: string;
+	about?: string;
+}
+
 interface ConversationListProps {
 	conversations: ConversationWithMessages[];
+	contacts: Contact[]; // Adicionado a lista de contatos
 	onSelectConversation: (conversation: ConversationWithMessages) => void;
 	loadOlderConversations: () => Promise<void>;
 	hasMoreConversations?: boolean;
@@ -15,6 +23,7 @@ interface ConversationListProps {
 
 export const ConversationList = ({
 	conversations,
+	contacts, // Novo prop
 	onSelectConversation,
 	loadOlderConversations,
 	hasMoreConversations,
@@ -23,53 +32,36 @@ export const ConversationList = ({
 }: ConversationListProps) => {
 	const observerTarget = useRef<HTMLDivElement>(null);
 
+	// Função para obter o nome do usuário com base no ID da conversa
+	const getUserName = (conversation: ConversationWithMessages) => {
+		const contact = contacts.find(c => c.id === conversation.userId);
+		return contact ? contact.name : 'Usuário desconhecido';
+	};
+
 	return (
 		<InfiniteScroll
 			pageStart={0}
 			loadMore={loadOlderConversations}
 			hasMore={hasMoreConversations}
 			loader={
-				<div
-					className="loader rounded-md px-3 py-2 flex items-center gap-2 m-3 border-2 font-medium"
-					key={0}
-				>
-					<LoadingAnimation
-						label={'Loading conversations'}
-						className="h-6 w-6"
-					/>
-					Loading older conversations...
-				</div>
+					<div
+						className="loader rounded-md px-3 py-2 flex items-center gap-2 m-3 border-2 font-medium"
+						key={0}
+					>
+						<LoadingAnimation
+							label={'Loading conversations'}
+							className="h-6 w-6"
+						/>
+						Loading older conversations...
+					</div>
 			}
 			useWindow={false}
 		>
 			<div
-				className={`flex flex-col  items-center w-full divide-y-2 ${className}`}
+				className={`flex flex-col items-center w-full divide-y-2 ${className}`}
 			>
 				{conversations
-					// if the conversation had the messages data, they could be sorted by the last message
-					.sort((a, b) => {
-						// a.messages.sort(
-						// 	(a, b) =>
-						// 		new Date(b.createdAt).getTime() -
-						// 		new Date(a.createdAt).getTime()
-						// );
-						// b.messages.sort(
-						// 	(a, b) =>
-						// 		new Date(b.createdAt).getTime() -
-						// 		new Date(a.createdAt).getTime()
-						// );
-
-						// return (
-						// 	new Date(b.messages[0].createdAt).getTime() -
-						// 	new Date(a.messages[0].createdAt).getTime()
-						// );
-
-						// sorts the conversations by the last update instead
-						return (
-							new Date(b.updatedAt).getTime() -
-							new Date(a.updatedAt).getTime()
-						);
-					})
+					.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 					.map((conversation) => (
 						<button
 							className="w-full"
@@ -78,10 +70,8 @@ export const ConversationList = ({
 						>
 							<ConversationItem
 								conversation={conversation}
-								userName={'Chatbot User'}
-								isSelected={
-									conversation.id === selectedConversationId
-								}
+								userName={getUserName(conversation)} // Usando a função getUserName
+								isSelected={conversation.id === selectedConversationId}
 							/>
 						</button>
 					))}
