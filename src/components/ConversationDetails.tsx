@@ -1,16 +1,15 @@
 import pRetry, { AbortError } from 'p-retry';
 import toast from 'react-hot-toast';
 import { Conversation, Message, User } from '@botpress/client';
-import { ConversationInfo } from './ConversationInfo';
-import { isDefinedAndHasItems } from '../utils';
 import { LoadingAnimation } from './interface/Loading';
-import { MessageInput } from './MessageInput';
 import { MessageList } from './MessageList';
+import { MessageInput } from './MessageInput';
 import { useBotpressClient } from '../hooks/botpressClient';
 import { useEffect, useRef, useState } from 'react';
+import { isDefinedAndHasItems } from '../utils/arrayUtils';
 
 interface ConversationDetailsProps {
-	conversation: Conversation;
+	conversation: Conversation & { userId?: string };
 	onDeleteConversation: (conversationId: string) => void;
 	messagesInfo?: {
 		list: Message[];
@@ -37,12 +36,16 @@ export const ConversationDetails = ({
 
 	const messageListEndRef = useRef<HTMLDivElement>(null);
 
+	useEffect(() => {
+		handleScrollToBottom();
+	}, [messages.length]);
+
 	function handleScrollToBottom() {
-		if (messageListEndRef.current) {
-			messageListEndRef.current.scrollIntoView({ behavior: 'smooth' });
-		} else {
-			console.debug('messageListEndRef.current is null');
-		}
+		setTimeout(() => {
+			if (messageListEndRef.current) {
+				messageListEndRef.current.scrollIntoView({ behavior: 'smooth' });
+			}
+		}, 100);
 	}
 
 	async function loadOlderMessages() {
@@ -164,120 +167,180 @@ export const ConversationDetails = ({
 			}
 		});
 
-		isDefinedAndHasItems(messages) &&
-			!isDefinedAndHasItems(users) &&
+		if (isDefinedAndHasItems(messages) && !isDefinedAndHasItems(users)) {
 			(async () => {
 				setIsLoadingUsers(true);
 
 				try {
 					// grabs all user ids from messages
-					const userIds = messages.reduce(
-						(acc: string[], message: Message) => {
-							// checks if the message has a userId and if it's not already in the array
-							if (
-								message.userId &&
-								!acc.includes(message.userId)
-							) {
-								acc.push(message.userId);
-							}
-
-							return acc;
-						},
-						[]
-					);
+					const userIds = messages.reduce((acc: string[], message: Message) => {
+						if (message.userId && !acc.includes(message.userId)) {
+							acc.push(message.userId);
+						}
+						return acc;
+					}, []);
 
 					// gets all users from the user ids
-					userIds.forEach(async (userId, index) => {
+					userIds.forEach(async (userId) => {
 						try {
-							const showUserRequest =
-								await botpressClient?.getUser({
-									id: userId,
-								});
+							const showUserRequest = await botpressClient?.getUser({
+								id: userId,
+							});
 
-							if (showUserRequest && showUserRequest.user) {
-								setUsers((prevUsers) => {
-									return [...prevUsers, showUserRequest.user];
-								});
+							if (showUserRequest?.user) {
+								setUsers((prevUsers) => [...prevUsers, showUserRequest.user]);
 							}
-						} catch (error: any) {
-							console.log("Couldn't load user details");
-
+						} catch (error) {
+							console.log("Não foi possível carregar os detalhes do usuário");
 							console.log(JSON.stringify(error));
 						}
 					});
 				} catch (error) {
 					console.log(JSON.stringify(error));
-
-					toast.error("Couldn't load users' details");
+					toast.error("Não foi possível carregar os detalhes dos usuários");
 				}
 
 				setIsLoadingUsers(false);
 			})();
+		}
 	}, [messages]);
 
-	const reloadMessageList = () => {
+	useEffect(() => {
+		const fetchNewMessages = async () => {
+			if (!botpressClient) return;
+
+			try {
+				const getMessages = await botpressClient.listMessages({
+					conversationId: conversation.id,
+				});
+
+				// Verifica se há mensagens novas, evitando duplicatas pelo ID
+				const newMessages = getMessages.messages.filter(newMsg => {
+					// Verifica se a mensagem já existe no array atual
+					const messageExists = messages.some(existingMsg => 
+						existingMsg.id === newMsg.id
+					);
+					return !messageExists;
+				});
+
+				if (newMessages.length > 0) {
+					setMessages(prevMessages => {
+						// Adiciona apenas mensagens únicas
+						const uniqueMessages = [...prevMessages];
+						newMessages.forEach(newMsg => {
+							if (!uniqueMessages.some(msg => msg.id === newMsg.id)) {
+								uniqueMessages.push(newMsg);
+							}
+						});
+						return uniqueMessages;
+					});
+					handleScrollToBottom();
+				}
+			} catch (error: any) {
+				console.error("Erro ao buscar novas mensagens:", error);
+				if (error.code === 429) {
+					return; // Rate limit atingido
+				}
+			}
+		};
+
+		const interval = setInterval(fetchNewMessages, 20000);
+		return () => clearInterval(interval);
+	}, [conversation.id, botpressClient, messages]);
+
+	const reloadMessageList = async () => {
 		setMessages([]);
 		setIsLoadingMessages(true);
 		
-		// Recarregar as mensagens usando o botpressClient
-		botpressClient?.listMessages({
-			conversationId: conversation.id,
-		}).then((response) => {
-			setMessages(response.messages);
-			setNextMessagesToken(response.meta.nextToken || undefined);
-			setIsLoadingMessages(false);
-		}).catch((error) => {
+		try {
+			const response = await botpressClient?.listMessages({
+				conversationId: conversation.id,
+			});
+
+			if (response) {
+				setMessages(response.messages);
+				setNextMessagesToken(response.meta.nextToken || undefined);
+			}
+		} catch (error) {
 			console.error("Erro ao recarregar mensagens:", error);
 			toast.error("Não foi possível recarregar as mensagens");
+		} finally {
 			setIsLoadingMessages(false);
-		});
+		}
 	};
 
 	const addMessageToList = (message: Message) => {
 		setMessages((prevMessages) => [...prevMessages, message]);
 	};
 
+	const getUserName = () => {
+		if (!conversation.userId) return 'Usuário desconhecido';
+		
+		const user = users.find(u => u.id === conversation.userId);
+		return user?.tags['whatsapp:name'] || 
+			   user?.tags['name'] || 
+			   conversation.userId || 
+			   'Usuário desconhecido';
+	};
+
 	return (
-		<div className={`flex ${className}`}>
-			<div className="w-2/3 flex flex-col default-border bg-white">
+		<div className={`flex flex-col h-full ${className}`}>
+			{/* Cabeçalho da conversa */}
+			<div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+				<div className="flex items-center gap-2">
+					<h2 className="text-lg font-medium">{getUserName()}</h2>
+					<button
+						onClick={reloadMessageList}
+						className="p-1 hover:bg-gray-200 rounded-full"
+						title="Recarregar conversa"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+						</svg>
+					</button>
+				</div>
+				<button
+					onClick={() => handleDeleteConversation(conversation.id)}
+					className="text-red-500 hover:text-red-700"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+						<path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+					</svg>
+				</button>
+			</div>
+
+			{/* Área de mensagens - Com scroll melhorado */}
+			<div className="flex-1 overflow-hidden">
 				{isLoadingMessages ? (
-					<div className="self-center bg-zinc-200 p-6 text-lg font-medium rounded-md my-auto flex flex-col items-center gap-5">
-						<LoadingAnimation label="Loading messages..." />
-						Loading messages...
+					<div className="h-full flex items-center justify-center">
+						<LoadingAnimation label="Carregando mensagens..." className="h-8 w-8" />
 					</div>
 				) : (
-					<div className="flex flex-col h-full p-4">
-						<div className="overflow-auto h-full">
-							<MessageList
-								messages={messages}
-								loadOlderMessages={loadOlderMessages}
-								hasMoreMessages={nextMessagesToken ? true : false}
-								handleScrollToBottom={handleScrollToBottom}
-								bottomRef={messageListEndRef}
-								conversationId={conversation.id}
-								addMessageToList={addMessageToList}
-								botpressBotIdAsAUser={botpressBotIdAsAUser}
-							/>
-						</div>
+					<div className="h-full flex flex-col overflow-y-auto">
+						<MessageList
+							messages={messages}
+							loadOlderMessages={loadOlderMessages}
+							hasMoreMessages={!!nextMessagesToken}
+							handleScrollToBottom={handleScrollToBottom}
+							bottomRef={messageListEndRef}
+							conversationId={conversation.id}
+							addMessageToList={addMessageToList}
+							botpressBotIdAsAUser={botpressBotIdAsAUser}
+						/>
+						<div ref={messageListEndRef} />
 					</div>
 				)}
 			</div>
 
-			<div className="w-1/3 default-border overflow-y-auto bg-white">
-				{isLoadingUsers ? (
-					<div className="self-center bg-zinc-200 p-6 text-lg font-medium rounded-md my-auto flex flex-col items-center gap-5">
-						<LoadingAnimation label="Loading messages..." />
-							Loading users' details...
-					</div>
-					) : (
-					<ConversationInfo
-						conversation={conversation}
-						users={users}
-						onDeleteConversation={handleDeleteConversation}
-						botpressBotIdAsAUser={botpressBotIdAsAUser}
-						className="flex"
-					/>
-				)}
+			{/* Input de mensagem */}
+			<div className="border-t p-4">
+				<MessageInput
+					conversationId={conversation.id}
+					addMessageToList={addMessageToList}
+					handleScrollToBottom={handleScrollToBottom}
+					botpressBotIdAsAUser={botpressBotIdAsAUser}
+					reloadMessageList={reloadMessageList}
+				/>
 			</div>
 		</div>
 	);

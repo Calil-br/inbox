@@ -12,10 +12,16 @@ interface Contact {
 interface ContactsProps {
   contacts: Contact[];
   onSelectContact: (contactId: string) => void;
-  isLoading: boolean;
+  isLoading?: boolean;
+  className?: string;
 }
 
-export const Contacts: React.FC<ContactsProps> = ({ contacts, onSelectContact, isLoading }) => {
+export const Contacts = ({ 
+  contacts, 
+  onSelectContact, 
+  isLoading = false,
+  className = ''
+}: ContactsProps) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -26,7 +32,7 @@ export const Contacts: React.FC<ContactsProps> = ({ contacts, onSelectContact, i
   );
 
   return (
-    <div className="bg-white rounded-md shadow-md overflow-hidden">
+    <div className={`bg-white rounded-md shadow-md overflow-hidden ${className}`}>
       <div className="p-2 flex justify-between items-center border-b">
         <h2 className="text-xl font-semibold">Contatos</h2>
         <button

@@ -14,6 +14,7 @@ import {
 	getStoredCredentials,
 } from '../services/storage';
 import { Contacts } from '../components/Contacts';
+import { SendCustomMessage } from '../components/SendCustomMessage'; // Adicione este import
 
 interface Contact {
   id: string;
@@ -82,13 +83,19 @@ export const Dashboard = () => {
 			let updatedConversations: ConversationWithMessages[] =
 				getConversations.conversations as ConversationWithMessages[];
 
-			// Verifica se há mudanças nas conversas
+			// Remove duplicatas das conversas existentes
+			const existingIds = new Set(conversationList.map(c => c.id));
+			const newConversations = updatedConversations.filter(c => !existingIds.has(c.id));
+
+			// Verifica mudanças nas conversas existentes
 			const hasChanges = updatedConversations.some((updatedConvo) => {
 				const existingConvo = conversationList.find(convo => convo.id === updatedConvo.id);
-				return !existingConvo || existingConvo.messages.length !== updatedConvo.messages.length;
+				return !existingConvo || 
+					   existingConvo.messages.length !== updatedConvo.messages.length ||
+					   existingConvo.updatedAt !== updatedConvo.updatedAt;
 			});
 
-			if (hasChanges) {
+			if (hasChanges || newConversations.length > 0) {
 				setIsLoadingContacts(true);
 				console.log('Atualizando conversas e contatos...');
 
@@ -129,9 +136,33 @@ export const Dashboard = () => {
 					}
 				}
 
-				setConversationList(updatedConversations);
+				// Atualiza a lista de conversas mantendo apenas uma instância de cada
+				setConversationList(prevList => {
+					const mergedList = [...prevList];
+					updatedConversations.forEach(updatedConvo => {
+						const index = mergedList.findIndex(c => c.id === updatedConvo.id);
+						if (index !== -1) {
+							mergedList[index] = updatedConvo;
+						} else {
+							mergedList.push(updatedConvo);
+						}
+					});
+					return mergedList;
+				});
+
 				setNextConversationsToken(getConversations.nextConversationsToken);
-				setContacts(newContacts);
+				setContacts(prevContacts => {
+					const uniqueContacts = [...prevContacts];
+					newContacts.forEach(newContact => {
+						const index = uniqueContacts.findIndex(c => c.id === newContact.id);
+						if (index !== -1) {
+							uniqueContacts[index] = newContact;
+						} else {
+							uniqueContacts.push(newContact);
+						}
+					});
+					return uniqueContacts;
+				});
 			} else {
 				console.log('Nenhuma atualização necessária.');
 			}
@@ -286,62 +317,54 @@ export const Dashboard = () => {
 	};
 
 	return botpressClient ? (
-		<div className="flex flex-col h-screen overflow-hidden bg-zinc-100 text-gray-800">
+		<div className="flex flex-col h-screen bg-gray-100">
 			<Header
 				handleLogout={clearsCredentialsAndClient}
 				botName={botInfo.name}
-				className="flex-shrink-0 h-14"
+				className="flex-shrink-0"
 			/>
-			<div className="mx-2 mb-2 gap-2 flex overflow-hidden h-full">
-				<div className="flex flex-col gap-2 w-1/4">
-					<aside className="w-full flex-col flex flex-1 rounded-md border border-zinc-200 overflow-auto">
-						<ConversationList
-							conversations={conversationList}
-							contacts={contacts} // Adicionando a lista de contatos
-							onSelectConversation={(conversation: ConversationWithMessages) =>
-								setSelectedConversation(conversation)
-							}
-							selectedConversationId={selectedConversation?.id}
-							loadOlderConversations={loadOlderConversations}
-							hasMoreConversations={nextConversationsToken ? true : false}
-							className="bg-white"
-						/>
-
-						{isLoadingConversations && (
-							<div className="self-center bg-zinc-200 p-6 text-lg font-medium rounded-md my-auto flex flex-col items-center gap-5">
-								<LoadingAnimation label="Loading messages..." />
-								Loading conversations...
-							</div>
-						)}
-					</aside>
-					<Contacts contacts={contacts} onSelectContact={handleSelectContact} isLoading={isLoadingContacts} />
+			<div className="flex flex-1 overflow-hidden p-4 gap-4">
+				{/* Painel esquerdo - Lista de conversas */}
+				<div className="flex flex-col w-96 bg-white rounded-lg shadow-sm overflow-hidden">
+					<ConversationList
+						conversations={conversationList}
+						contacts={contacts}
+						onSelectConversation={setSelectedConversation}
+						selectedConversationId={selectedConversation?.id}
+						loadOlderConversations={loadOlderConversations}
+						hasMoreConversations={!!nextConversationsToken}
+					/>
 				</div>
-
-				<div className="flex w-3/4 h-full">
+				
+				{/* Painel central - Detalhes da conversa */}
+				<div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden">
 					{selectedConversation ? (
 						<ConversationDetails
 							conversation={selectedConversation}
 							messagesInfo={{
 								list: selectedConversation.messages,
-								nextToken:
-									selectedConversation.nextMessagesToken,
+								nextToken: selectedConversation.nextMessagesToken,
 							}}
-							className="w-full gap-1"
-							onDeleteConversation={(conversationId: string) => {
+							onDeleteConversation={(id) => {
 								setSelectedConversation(undefined);
-								setConversationList((prev) =>
-									prev.filter(
-										(conversation) =>
-											conversation.id !== conversationId
-									)
-								);
+								setConversationList(prev => prev.filter(c => c.id !== id));
 							}}
 						/>
 					) : (
-						<div className="bg-zinc-200 p-5 text-lg font-medium rounded-md my-auto mx-auto">
-							Select a conversation to see details
+						<div className="h-full flex items-center justify-center text-gray-500">
+							Selecione uma conversa para começar
 						</div>
 					)}
+				</div>
+
+				{/* Painel direito - Envio de mensagens customizadas e contatos */}
+				<div className="w-80 flex flex-col gap-4">
+					<SendCustomMessage className="flex-shrink-0" />
+					<Contacts
+						contacts={contacts}
+						onSelectContact={handleSelectContact}
+						className="flex-1"
+					/>
 				</div>
 			</div>
 		</div>

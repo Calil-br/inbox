@@ -1,14 +1,14 @@
 import toast from 'react-hot-toast';
 import { CreateMessageBody, Message } from '@botpress/client/dist/gen';
 import { useBotpressClient } from '../hooks/botpressClient';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 interface MessageInputProps {
 	conversationId: string;
 	addMessageToList: (message: Message) => void;
 	handleScrollToBottom: () => void;
 	botpressBotIdAsAUser?: string;
-	reloadMessageList: () => void; // Nova prop para recarregar a lista de mensagens
+	reloadMessageList: () => void;
 }
 
 export const MessageInput = ({
@@ -16,13 +16,22 @@ export const MessageInput = ({
 	addMessageToList,
 	handleScrollToBottom,
 	botpressBotIdAsAUser,
-	reloadMessageList, // Adicione esta nova prop
+	reloadMessageList,
 }: MessageInputProps) => {
 	const [messageInput, setMessageInput] = useState<string>('');
-
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const { botpressClient } = useBotpressClient();
 
+	const handleKeyPress = (e: React.KeyboardEvent) => {
+		if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			handleSendMessage();
+		}
+	};
+
 	async function handleSendMessage() {
+		if (!messageInput.trim()) return;
+		
 		try {
 			const sendMessageBody: CreateMessageBody = {
 				conversationId,
@@ -32,52 +41,44 @@ export const MessageInput = ({
 				tags: {},
 			};
 
-			const sendMessage = await botpressClient?.createMessage(
-				sendMessageBody
-			);
-
-			console.log(sendMessage);
+			const sendMessage = await botpressClient?.createMessage(sendMessageBody);
 
 			if (sendMessage && sendMessage.message) {
 				setMessageInput('');
-
 				addMessageToList(sendMessage.message);
-
 				handleScrollToBottom();
+				reloadMessageList?.(); // Chamada opcional
 			}
 		} catch (error: any) {
 			console.log(JSON.stringify(error));
-
-			toast.error("Couldn't send message");
+			toast.error("Não foi possível enviar a mensagem");
 		}
 	}
 
 	return botpressBotIdAsAUser ? (
-		<div className="flex gap-2 items-center flex-shrink-0 mt-5">
-			<input
-				type="text"
-				className="w-full rounded-2xl border-2 p-4"
-				placeholder="Type something..."
+		<div className="flex items-end gap-2 p-4 border-t bg-gray-50">
+			<textarea
+				ref={inputRef}
+				rows={1}
+				className="flex-1 resize-none rounded-lg border-2 p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+				placeholder="Digite uma mensagem..."
 				value={messageInput}
 				onChange={(e) => setMessageInput(e.target.value)}
+				onKeyDown={handleKeyPress}
 			/>
 			<button
-				className="bg-blue-500 text-white rounded-2xl p-4"
-				onClick={() => handleSendMessage()}
-				onKeyDown={(e) => {
-					if (e.key === 'Enter' || e.keyCode === 13) {
-						handleSendMessage();
-					}
-				}}
+				className="p-3 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:bg-gray-300"
+				onClick={handleSendMessage}
+				disabled={!messageInput.trim()}
 			>
-				Send
+				<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+				</svg>
 			</button>
-			
 		</div>
 	) : (
-		<div className="bg-zinc-200 p-5 mb-10 text-lg font-medium rounded-md mx-auto">
-			You can only send messages in conversations where your bot has
-			already talked to the user...
+		<div className="p-4 text-center text-gray-500 bg-gray-50 border-t">
+			Você só pode enviar mensagens em conversas onde seu bot já interagiu...
 		</div>
 	);
 };

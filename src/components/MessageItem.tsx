@@ -1,9 +1,10 @@
 import { Message } from '@botpress/client';
-import {
-	ChoicePayloadBP,
-	QuickReplyPayloadBP,
-	TextPayloadBP,
-} from '../types/botpress';
+import { format } from 'date-fns';
+
+interface TextPayloadBP {
+	text: string;
+	options?: any;
+}
 
 interface MessageItemProps {
 	message: Message;
@@ -12,71 +13,30 @@ interface MessageItemProps {
 
 export const MessageItem = ({ message, className }: MessageItemProps) => {
 	const isTextPayload = (payload: any): payload is TextPayloadBP => {
-		return (
-			(payload as TextPayloadBP).text !== undefined &&
-			payload.options === undefined
-		);
-	};
-
-	const isChoicePayload = (payload: any): payload is ChoicePayloadBP => {
-		return (payload as ChoicePayloadBP).options !== undefined;
-	};
-
-	const isQuickReplyPayload = (
-		payload: any
-	): payload is QuickReplyPayloadBP => {
-		return (payload as QuickReplyPayloadBP).payload?.text !== undefined;
+		return (payload as TextPayloadBP).text !== undefined && payload.options === undefined;
 	};
 
 	return (
 		<div
 			className={`flex flex-col ${
-				message.direction === 'incoming'
-					? 'self-start items-start pr-5'
-					: 'self-end items-end pl-5'
-			} ${className}`}
+				message.direction === 'incoming' ? 'self-start items-start pr-5' : 'self-end items-end pl-5'
+			} ${className} max-w-[70%]`}
 		>
 			<div
-				className={`px-3 py-2 rounded-2xl ${
+				className={`px-4 py-2 rounded-lg ${
 					message.direction === 'incoming'
-						? 'bg-blue-500 text-white'
-						: 'bg-gray-200'
-				}`}
+						? 'bg-white border border-gray-200'
+						: 'bg-blue-500 text-white'
+				} shadow-sm`}
 			>
 				{isTextPayload(message.payload) ? (
-					<span className="whitespace-pre-line">
+					<span className="whitespace-pre-line break-words">
 						{message.payload.text}
 					</span>
-				) : isQuickReplyPayload(message.payload) ? (
-					<span className="whitespace-pre-line">
-						{message.payload.payload.text}
-					</span>
-				) : isChoicePayload(message.payload) ? (
-					<>
-						<span className="whitespace-pre-line">
-							{message.payload.text}
-						</span>
-						<ul className="list-inside mt-2">
-							{message.payload.options.map((option) => (
-								<li key={option.value}>{option.label}</li>
-							))}
-						</ul>
-					</>
-				) : (
-					<span className="whitespace-pre-line">
-						Could not show content
-					</span>
-				)}
+				) : null}
 			</div>
-			{/* <ReactMessageRenderer
-				content={{
-					type: 'text',
-					text: message.payload.text,
-				}}
-				config={defaultMessageConfig}
-			/> */}
-			<span className="text-sm text-gray-400">
-				{new Date(message.createdAt).toLocaleString()}
+			<span className="text-xs text-gray-400 mt-1">
+				{format(new Date(message.createdAt), 'HH:mm')}
 			</span>
 		</div>
 	);
