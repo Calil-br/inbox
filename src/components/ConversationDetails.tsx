@@ -215,6 +215,28 @@ export const ConversationDetails = ({
 			})();
 	}, [messages]);
 
+	const reloadMessageList = () => {
+		setMessages([]);
+		setIsLoadingMessages(true);
+		
+		// Recarregar as mensagens usando o botpressClient
+		botpressClient?.listMessages({
+			conversationId: conversation.id,
+		}).then((response) => {
+			setMessages(response.messages);
+			setNextMessagesToken(response.meta.nextToken || undefined);
+			setIsLoadingMessages(false);
+		}).catch((error) => {
+			console.error("Erro ao recarregar mensagens:", error);
+			toast.error("Não foi possível recarregar as mensagens");
+			setIsLoadingMessages(false);
+		});
+	};
+
+	const addMessageToList = (message: Message) => {
+		setMessages((prevMessages) => [...prevMessages, message]);
+	};
+
 	return (
 		<div className={`flex ${className}`}>
 			<div className="w-2/3 flex flex-col default-border bg-white">
@@ -229,24 +251,14 @@ export const ConversationDetails = ({
 							<MessageList
 								messages={messages}
 								loadOlderMessages={loadOlderMessages}
-								hasMoreMessages={
-									nextMessagesToken ? true : false
-								}
+								hasMoreMessages={nextMessagesToken ? true : false}
 								handleScrollToBottom={handleScrollToBottom}
 								bottomRef={messageListEndRef}
+								conversationId={conversation.id}
+								addMessageToList={addMessageToList}
+								botpressBotIdAsAUser={botpressBotIdAsAUser}
 							/>
 						</div>
-						<MessageInput
-							conversationId={conversation.id}
-							addMessageToList={(message: Message) => {
-								setMessages((prevMessages) => [
-									...prevMessages,
-									message,
-								]);
-							}}
-							botpressBotIdAsAUser={botpressBotIdAsAUser}
-							handleScrollToBottom={handleScrollToBottom}
-						/>
 					</div>
 				)}
 			</div>
@@ -255,9 +267,9 @@ export const ConversationDetails = ({
 				{isLoadingUsers ? (
 					<div className="self-center bg-zinc-200 p-6 text-lg font-medium rounded-md my-auto flex flex-col items-center gap-5">
 						<LoadingAnimation label="Loading messages..." />
-						Loading users' details...
+							Loading users' details...
 					</div>
-				) : (
+					) : (
 					<ConversationInfo
 						conversation={conversation}
 						users={users}

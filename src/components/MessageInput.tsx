@@ -8,6 +8,7 @@ interface MessageInputProps {
 	addMessageToList: (message: Message) => void;
 	handleScrollToBottom: () => void;
 	botpressBotIdAsAUser?: string;
+	reloadMessageList: () => void; // Nova prop para recarregar a lista de mensagens
 }
 
 export const MessageInput = ({
@@ -15,6 +16,7 @@ export const MessageInput = ({
 	addMessageToList,
 	handleScrollToBottom,
 	botpressBotIdAsAUser,
+	reloadMessageList, // Adicione esta nova prop
 }: MessageInputProps) => {
 	const [messageInput, setMessageInput] = useState<string>('');
 
@@ -70,6 +72,7 @@ export const MessageInput = ({
 			>
 				Send
 			</button>
+			
 		</div>
 	) : (
 		<div className="bg-zinc-200 p-5 mb-10 text-lg font-medium rounded-md mx-auto">
