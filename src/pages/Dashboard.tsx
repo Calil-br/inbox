@@ -5,16 +5,16 @@ import { ConversationDetails } from '../components/ConversationDetails';
 import { ConversationList } from '../components/ConversationList';
 import { Header } from '../components/interface/Header';
 import { listConversationsWithMessages } from '../hooks/clientFunctions';
-import { LoadingAnimation } from '../components/interface/Loading';
 import { LoginPage } from '../components/LoginPage';
 import { useBotpressClient } from '../hooks/botpressClient';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
 	clearStoredCredentials,
 	getStoredCredentials,
 } from '../services/storage';
 import { Contacts } from '../components/Contacts';
 import { SendCustomMessage } from '../components/SendCustomMessage'; // Adicione este import
+import { motion } from 'framer-motion';
 
 interface Contact {
   id: string;
@@ -31,7 +31,7 @@ export interface ConversationWithMessages extends Conversation {
 }
 
 export const Dashboard = () => {
-	const [isLoadingConversations, setIsLoadingConversations] =
+	const [] =
 		useState<boolean>(true);
 
 	const [botInfo, setBotInfo] = useState<{
@@ -51,9 +51,9 @@ export const Dashboard = () => {
 
 	const { botpressClient, createClient, deleteClient } = useBotpressClient();
 
-	const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+	const [, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
 
-	const [isLoadingContacts, setIsLoadingContacts] = useState(true);
+	const [, setIsLoadingContacts] = useState(true);
 
 	function clearsCredentialsAndClient() {
 		deleteClient();
@@ -69,122 +69,91 @@ export const Dashboard = () => {
 		});
 	};
 
-	const refreshConversations = async () => {
+	// Memoização da função de verificação de mudanças
+	const checkForChanges = useCallback((updated: ConversationWithMessages[], current: ConversationWithMessages[]) => {
+		return updated.some((updatedConvo) => {
+			const existingConvo = current.find(convo => convo.id === updatedConvo.id);
+			return !existingConvo || 
+				   existingConvo.messages.length !== updatedConvo.messages.length ||
+				   existingConvo.updatedAt !== updatedConvo.updatedAt;
+		});
+	}, []);
+
+	// Otimização do refreshConversations
+	const refreshConversations = useCallback(async () => {
 		if (!botpressClient) return;
 
 		try {
-			console.log('Verificando atualizações...');
+			setIsLoadingContacts(true);
 			const getConversations = await listConversationsWithMessages(
 				botpressClient,
 				undefined,
 				true
 			);
 
-			let updatedConversations: ConversationWithMessages[] =
-				getConversations.conversations as ConversationWithMessages[];
-
-			// Remove duplicatas das conversas existentes
-			const existingIds = new Set(conversationList.map(c => c.id));
-			const newConversations = updatedConversations.filter(c => !existingIds.has(c.id));
-
-			// Verifica mudanças nas conversas existentes
-			const hasChanges = updatedConversations.some((updatedConvo) => {
-				const existingConvo = conversationList.find(convo => convo.id === updatedConvo.id);
-				return !existingConvo || 
-					   existingConvo.messages.length !== updatedConvo.messages.length ||
-					   existingConvo.updatedAt !== updatedConvo.updatedAt;
-			});
-
-			if (hasChanges || newConversations.length > 0) {
-				setIsLoadingContacts(true);
-				console.log('Atualizando conversas e contatos...');
-
-				const newContacts: Contact[] = [];
-
-				for (let convo of updatedConversations) {
-					const incomingMessage = convo.messages
-						.slice()
-						.reverse()
-						.find((msg) => msg.direction === 'incoming');
-
-					if (incomingMessage && incomingMessage.userId) {
-						try {
-							const user = await botpressClient.getUser({
-								id: incomingMessage.userId,
-							});
-							convo.userName =
-								user.user.tags['whatsapp:name'] ||
-								user.user.tags['name'] ||
-								'Usuário sem nome';
-							convo.userId = incomingMessage.userId;
-							newContacts.push({
-								id: incomingMessage.userId,
-								name: convo.userName,
-								phone: user.user.tags['whatsapp:userId'],
-								about: user.user.tags['whatsapp:about'] || undefined,
-							});
-						} catch (error: any) {
-							console.log(
-								`Não foi possível buscar o nome do usuário com ID ${incomingMessage.userId}`
-							);
-							convo.userName = 'Usuário sem nome';
-							convo.userId = undefined;
-						}
-					} else {
-						convo.userName = 'Usuário sem nome';
-						convo.userId = undefined;
-					}
-				}
-
-				// Atualiza a lista de conversas mantendo apenas uma instância de cada
-				setConversationList(prevList => {
-					const mergedList = [...prevList];
-					updatedConversations.forEach(updatedConvo => {
-						const index = mergedList.findIndex(c => c.id === updatedConvo.id);
-						if (index !== -1) {
-							mergedList[index] = updatedConvo;
-						} else {
-							mergedList.push(updatedConvo);
-						}
-					});
-					return mergedList;
-				});
-
-				setNextConversationsToken(getConversations.nextConversationsToken);
-				setContacts(prevContacts => {
-					const uniqueContacts = [...prevContacts];
-					newContacts.forEach(newContact => {
-						const index = uniqueContacts.findIndex(c => c.id === newContact.id);
-						if (index !== -1) {
-							uniqueContacts[index] = newContact;
-						} else {
-							uniqueContacts.push(newContact);
-						}
-					});
-					return uniqueContacts;
-				});
-			} else {
-				console.log('Nenhuma atualização necessária.');
+			const updatedConversations = getConversations.conversations as ConversationWithMessages[];
+			
+			// Evita processamento desnecessário
+			if (!checkForChanges(updatedConversations, conversationList)) {
+				return;
 			}
-		} catch (error: any) {
-			console.log('Erro ao atualizar conversas:', JSON.stringify(error));
+
+			const processedConversations = await Promise.all(
+				updatedConversations.map(conversation => processConversation(conversation, botpressClient))
+			);
+			
+			setConversationList(processedConversations);
+			setNextConversationsToken(getConversations.nextConversationsToken);
+		} catch (error) {
+			console.error('Erro ao atualizar conversas:', error);
 		} finally {
 			setIsLoadingContacts(false);
 		}
-	};
+	}, [botpressClient, conversationList, checkForChanges]);
 
-	useEffect(() => {
-		if (botpressClient) {
-			const interval = setInterval(refreshConversations, 15000); // 15 segundos
-			setAutoRefreshInterval(interval);
+	// Memoização do processamento de conversas
+	const processConversation = useCallback(async (convo: ConversationWithMessages, client: any) => {
+		const incomingMessage = convo.messages
+			.slice()
+			.reverse()
+			.find((msg) => msg.direction === 'incoming');
 
-			return () => {
-				if (autoRefreshInterval) {
-					clearInterval(autoRefreshInterval);
-				}
-			};
+		if (!incomingMessage?.userId) {
+			return { ...convo, userName: 'Usuário sem nome' };
 		}
-	}, [botpressClient]);
+
+		try {
+			const user = await client.getUser({ id: incomingMessage.userId });
+			const userName = user.user.tags['whatsapp:name'] || user.user.tags['name'] || 'Usuário sem nome';
+			
+			// Adiciona o contato automaticamente
+			addContact({
+				id: incomingMessage.userId,
+				name: userName,
+				phone: user.user.tags['whatsapp:userId'],
+				about: user.user.tags['whatsapp:about']
+			});
+
+			return {
+				...convo,
+				userName,
+				userId: incomingMessage.userId
+			};
+		} catch (error) {
+			console.error(`Erro ao buscar usuário ${incomingMessage.userId}:`, error);
+			return { ...convo, userName: 'Usuário sem nome' };
+		}
+	}, [addContact]);
+
+	// Otimização do useEffect para auto-refresh
+	useEffect(() => {
+		if (!botpressClient) return;
+
+		const interval = setInterval(refreshConversations, 15000);
+		setAutoRefreshInterval(interval);
+
+		return () => clearInterval(interval);
+	}, [botpressClient, refreshConversations]);
 
 	useEffect(() => {
 		if (!botpressClient) {
@@ -317,15 +286,20 @@ export const Dashboard = () => {
 	};
 
 	return botpressClient ? (
-		<div className="flex flex-col h-screen bg-gray-100">
+		<div className="flex flex-col h-screen bg-gradient-to-br from-purple-50 to-gray-100">
 			<Header
 				handleLogout={clearsCredentialsAndClient}
 				botName={botInfo.name}
-				className="flex-shrink-0"
+				className="flex-shrink-0 mx-6 my-4"
 			/>
-			<div className="flex flex-1 overflow-hidden p-4 gap-4">
+			<div className="flex flex-1 overflow-hidden px-6 pb-6 gap-6">
 				{/* Painel esquerdo - Lista de conversas */}
-				<div className="flex flex-col w-96 bg-white rounded-lg shadow-sm overflow-hidden">
+				<motion.div 
+					initial={{ opacity: 0, x: -20 }}
+					animate={{ opacity: 1, x: 0 }}
+					className="flex flex-col w-96 bg-white rounded-xl shadow-lg overflow-hidden 
+						transition-all duration-200 hover:shadow-xl border border-gray-100"
+				>
 					<ConversationList
 						conversations={conversationList}
 						contacts={contacts}
@@ -334,10 +308,15 @@ export const Dashboard = () => {
 						loadOlderConversations={loadOlderConversations}
 						hasMoreConversations={!!nextConversationsToken}
 					/>
-				</div>
+				</motion.div>
 				
 				{/* Painel central - Detalhes da conversa */}
-				<div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden">
+				<motion.div 
+					initial={{ opacity: 0, y: 20 }}
+					animate={{ opacity: 1, y: 0 }}
+					className="flex-1 flex flex-col bg-white rounded-xl shadow-lg overflow-hidden 
+						transition-all duration-200 hover:shadow-xl border border-gray-100"
+				>
 					{selectedConversation ? (
 						<ConversationDetails
 							conversation={selectedConversation}
@@ -351,21 +330,36 @@ export const Dashboard = () => {
 							}}
 						/>
 					) : (
-						<div className="h-full flex items-center justify-center text-gray-500">
-							Selecione uma conversa para começar
+						<div className="h-full flex items-center justify-center text-gray-500 flex-col gap-6">
+							<motion.div 
+								whileHover={{ scale: 1.05 }}
+								className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-900 to-purple-500 
+									flex items-center justify-center text-white shadow-lg"
+							>
+								<svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+								</svg>
+							</motion.div>
+							<span className="text-xl font-medium text-gray-600">
+								Selecione uma conversa para começar
+							</span>
 						</div>
 					)}
-				</div>
+				</motion.div>
 
 				{/* Painel direito - Envio de mensagens customizadas e contatos */}
-				<div className="w-80 flex flex-col gap-4">
-					<SendCustomMessage className="flex-shrink-0" />
+				<motion.div 
+					initial={{ opacity: 0, x: 20 }}
+					animate={{ opacity: 1, x: 0 }}
+					className="w-80 flex flex-col gap-6"
+				>
+					<SendCustomMessage className="flex-shrink-0 transition-all duration-200 hover:shadow-xl" />
 					<Contacts
 						contacts={contacts}
 						onSelectContact={handleSelectContact}
-						className="flex-1"
+						className="flex-1 transition-all duration-200 hover:shadow-xl"
 					/>
-				</div>
+				</motion.div>
 			</div>
 		</div>
 	) : (

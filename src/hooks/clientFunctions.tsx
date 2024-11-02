@@ -1,21 +1,16 @@
-import { Client, Conversation, Message } from '@botpress/client';
+import { Client, Message, Conversation } from '@botpress/client';
 
-export interface ConversationWithOptionalMessages extends Conversation {
+export interface WhatsAppConversation extends Conversation {
 	messages?: Message[];
 	nextMessagesToken?: string;
-}
-
-export async function listConversations(
-	client: Client,
-	nextConversationsToken?: string
-) {
-	const listRequest = await client.listConversations({
-		nextToken: nextConversationsToken,
-	});
-
-	return {
-		conversations: listRequest.conversations,
-		nextConversationsToken: listRequest.meta.nextToken,
+	userName?: string;
+	userId?: string;
+	channel: string;
+	integration: 'whatsapp';
+	tags: {
+		'whatsapp:name'?: string;
+		'whatsapp:userId'?: string;
+		'whatsapp:about'?: string;
 	};
 }
 
@@ -24,19 +19,24 @@ export async function listConversationsWithMessages(
 	nextConversationsToken?: string,
 	hideEmptyConversations?: boolean
 ) {
-	// should use the listConversationsWithMessages function
-
 	const listRequest = await client.listConversations({
 		nextToken: nextConversationsToken,
 	});
 
-	const conversations: ConversationWithOptionalMessages[] =
-		listRequest.conversations;
+	const whatsappConversations = listRequest.conversations
+		.filter((conv): conv is WhatsAppConversation => 
+			conv.integration === 'whatsapp'
+		)
+		.map(conv => ({
+			...conv,
+			messages: undefined,
+			nextMessagesToken: undefined
+		}));
 
 	if (hideEmptyConversations) {
 		const conversationsWithMessages = await filterOutEmptyConversations(
 			client,
-			conversations
+			whatsappConversations
 		);
 
 		return {
@@ -46,7 +46,7 @@ export async function listConversationsWithMessages(
 	}
 
 	return {
-		conversations,
+		conversations: whatsappConversations,
 		nextConversationsToken: listRequest.meta.nextToken,
 	};
 }
@@ -79,7 +79,7 @@ export async function getBotInfo(client: Client, botId: string) {
 
 export async function filterOutEmptyConversations(
 	client: Client,
-	conversations: ConversationWithOptionalMessages[]
+	conversations: WhatsAppConversation[]
 ) {
 	for (const conversation of conversations) {
 		const { messages, nextMessagesToken } =

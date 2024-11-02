@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
-import InfiniteScroll from 'react-infinite-scroller';
+import React, { useState, useRef } from 'react';
 import { ConversationItem } from './ConversationItem';
 import { ConversationWithMessages } from '../pages/Dashboard';
 import { LoadingAnimation } from './interface/Loading';
+import { motion } from 'framer-motion';
+import { FiSearch } from 'react-icons/fi';
 
 interface Contact {
 	id: string;
@@ -98,15 +99,24 @@ export const ConversationList = ({
 	};
 
 	return (
-		<div className="flex flex-col h-full">
-			<div className="p-3 border-b">
-				<input
-					type="text"
-					placeholder="Pesquisar conversa..."
-					className="w-full px-4 py-2 rounded-full bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-					value={searchTerm}
-					onChange={(e) => setSearchTerm(e.target.value)}
-				/>
+		<motion.div 
+			className={`flex flex-col h-full bg-white rounded-lg shadow-lg overflow-hidden ${className}`}
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+		>
+			<div className="bg-gradient-to-r from-purple-900 to-purple-500 p-4">
+				<div className="relative">
+					<FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+					<input
+						type="text"
+						placeholder="Pesquisar conversa..."
+						className="w-full pl-10 pr-4 py-2 border rounded-full
+							focus:ring-2 focus:ring-purple-300 focus:border-purple-300 
+							outline-none transition-all duration-200"
+						value={searchTerm}
+						onChange={(e) => setSearchTerm(e.target.value)}
+					/>
+				</div>
 			</div>
 
 			<div 
@@ -114,46 +124,48 @@ export const ConversationList = ({
 				className="flex-1 overflow-y-auto"
 				onScroll={handleScroll}
 			>
-				<div className={`flex flex-col ${className}`}>
+				<div className="divide-y divide-gray-100">
 					{sortedUniqueConversations.map((conversation) => (
 						<div
 							key={conversation.id}
-							className={`flex items-center justify-between p-3 ${
+							className={`p-4 transition-colors ${
 								conversation.id === selectedConversationId
-									? 'bg-blue-50'
+									? 'bg-gray-50'
 									: 'hover:bg-gray-50'
 							}`}
 						>
-							<button
-								className="flex-1"
-								onClick={() => onSelectConversation(conversation)}
-							>
-								<ConversationItem
-									conversation={conversation}
-									userName={getUserName(conversation)}
-									isSelected={conversation.id === selectedConversationId}
-								/>
-							</button>
-							
-							<button
-								onClick={(e) => toggleInProgress(conversation.id, e)}
-								className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
-									inProgressConversations.has(conversation.id)
-										? 'bg-green-100 text-green-700 hover:bg-green-200'
-										: 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-								}`}
-							>
-								{inProgressConversations.has(conversation.id) ? 'Em atendimento' : 'Atender'}
-							</button>
+							<div className="flex items-center justify-between">
+								<button
+									className="flex-1"
+									onClick={() => onSelectConversation(conversation)}
+								>
+									<ConversationItem
+										conversation={conversation}
+										userName={getUserName(conversation)}
+										isSelected={conversation.id === selectedConversationId}
+									/>
+								</button>
+								
+								<button
+									onClick={(e) => toggleInProgress(conversation.id, e)}
+									className={`ml-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+										inProgressConversations.has(conversation.id)
+											? 'bg-green-100 text-green-700 hover:bg-green-200'
+											: 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+									}`}
+								>
+									{inProgressConversations.has(conversation.id) ? 'Em atendimento' : 'Atender'}
+								</button>
+							</div>
 						</div>
 					))}
 					{isLoading && (
-						<div className="px-3 py-2 flex items-center justify-center">
+						<div className="p-4 flex justify-center">
 							<LoadingAnimation label="Carregando conversas..." className="h-6 w-6" />
 						</div>
 					)}
 				</div>
 			</div>
-		</div>
+		</motion.div>
 	);
 };

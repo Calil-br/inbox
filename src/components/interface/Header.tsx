@@ -9,37 +9,46 @@ interface HeaderProps {
 export function Header({ handleLogout, botName, className }: HeaderProps) {
 	return (
 		<div
-			className={`overflow-hidden default-border bg-white p-3 flex items-center justify-between top-1 z-10 m-2 ${className}`}
+			className={`overflow-hidden rounded-lg shadow-lg bg-white ${className}`}
 		>
-			<div className="flex flex-row gap-5 items-center">
-				<h1 className="text-lg font-medium flex items-center gap-2">
-					<img
-						src={robotFaceIcon}
-						alt="Robot face icon"
-						className="w-6 h-6 mt-[0.3rem]"
-					/>
-					Chatbot Inbox
-				</h1>
-				<div className="px-3 py-1 text-center font-medium rounded-full border-gray-200 border-2">
-					{botName || 'Unnamed bot'}
+			<div className="bg-gradient-to-r from-purple-900 to-purple-500 p-4">
+				<div className="grid grid-cols-3 items-center">
+					{/* Lado esquerdo */}
+					<div className="flex items-center gap-3">
+						<div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+							<img
+								src={robotFaceIcon}
+								alt="Robot face icon"
+								className="w-6 h-6"
+							/>
+						</div>
+						<div className="px-3 py-1 text-sm bg-white/20 text-white rounded-full">
+							{botName || 'Unnamed bot'}
+						</div>
+					</div>
+
+					{/* Logo centralizado */}
+					<div className="flex justify-center">
+						<img 
+							src="https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=414,fit=crop,q=95/Yyv7aOk2ByFveyrm/logocerta-Aq2o8LokE3TRO3Oq.png"
+							alt="Logo"
+							className="h-12 w-auto"
+						/>
+					</div>
+
+					{/* Lado direito */}
+					<div className="flex items-center gap-4 justify-end">
+						<button className="text-white hover:bg-white/20 px-4 py-2 rounded-full transition-colors">
+							Conversations
+						</button>
+						<button
+							className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-full transition-colors"
+							onClick={() => handleLogout()}
+						>
+							Logout
+						</button>
+					</div>
 				</div>
-			</div>
-			<div className="flex items-center gap-2">
-				<a className="relative cursor-pointer whitespace-nowrap rounded-md p-2 px-4 text-sm transition-colors  text-zinc-900">
-					<span className="relative z-10">Conversations</span>
-					<div
-						className="absolute inset-0 rounded-md bg-zinc-100 opacity-100"
-						data-projection-id="1"
-					></div>
-				</a>
-			</div>
-			<div className="flex flex-row gap-5 items-center">
-				<button
-					className="bg-red-500 text-white text-sm font-medium rounded-md px-4 py-2"
-					onClick={() => handleLogout()}
-				>
-					Logout
-				</button>
 			</div>
 		</div>
 	);

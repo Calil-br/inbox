@@ -1,6 +1,6 @@
 import { Message } from '@botpress/client/dist/gen';
 import { MessageItem } from './MessageItem';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 
 interface MessageListProps {
 	messages: Message[];
@@ -24,13 +24,33 @@ export const MessageList = ({
 	botpressBotIdAsAUser,
 }: MessageListProps) => {
 	const [messageList, setMessageList] = useState<Message[]>([]);
+	const previousScrollHeightRef = useRef<number>(0);
+	const messageContainerRef = useRef<HTMLDivElement>(null);
+
+	useLayoutEffect(() => {
+		const container = messageContainerRef.current;
+		if (!container) return;
+
+		const previousScrollHeight = previousScrollHeightRef.current;
+		const newScrollHeight = container.scrollHeight;
+		
+		if (previousScrollHeight > 0) {
+			const scrollDiff = newScrollHeight - previousScrollHeight;
+			container.scrollTop += scrollDiff;
+		}
+
+		previousScrollHeightRef.current = newScrollHeight;
+	}, [messageList]);
 
 	useEffect(() => {
 		setMessageList(messages);
 	}, [messages]);
 
 	return (
-		<div className="flex flex-col min-h-0 p-4 space-y-4">
+		<div 
+			ref={messageContainerRef}
+			className="flex flex-col min-h-0 p-4 space-y-4 overflow-y-auto"
+		>
 			{hasMoreMessages && (
 				<button
 					onClick={loadOlderMessages}
@@ -43,7 +63,7 @@ export const MessageList = ({
 			{messageList.length > 0 ? (
 				messageList
 					.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-					.map((message, index) => (
+					.map((message) => (
 						<MessageItem
 							key={message.id}
 							message={message}
@@ -55,6 +75,7 @@ export const MessageList = ({
 					Nenhuma mensagem encontrada...
 				</div>
 			)}
+			<div ref={bottomRef} />
 		</div>
 	);
 };

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FiMessageSquare, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { useBotpressClient } from '../hooks/botpressClient';
 import toast from 'react-hot-toast';
 import { CreateMessageBody } from '@botpress/client/dist/gen';
@@ -48,69 +50,93 @@ export const SendCustomMessage: React.FC<SendCustomMessageProps> = ({ className 
   };
 
   return (
-    <div className={`bg-white rounded-md shadow-md overflow-hidden ${className}`}>
-      <div className="p-2 flex justify-between items-center border-b">
-        <h2 className="text-xl font-semibold">Enviar Mensagem Personalizada</h2>
+    <motion.div 
+      className={`bg-white rounded-lg shadow-lg overflow-hidden ${className}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+    >
+      {/* Cabeçalho */}
+      <div className="bg-gradient-to-r from-purple-900 to-purple-500 p-4 flex justify-between items-center">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <FiMessageSquare className="text-2xl" />
+          Enviar Mensagem Personalizada
+        </h2>
         <button
           onClick={() => setIsMinimized(!isMinimized)}
-          className="text-gray-500 hover:text-gray-700"
+          className="text-white hover:bg-white/20 p-2 rounded-full transition-colors"
         >
-          {isMinimized ? 'Expandir' : 'Minimizar'}
+          {isMinimized ? <FiChevronDown /> : <FiChevronUp />}
         </button>
       </div>
 
-      {!isMinimized && (
-        <div className="p-4 flex flex-col gap-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              ID da Conversa
-            </label>
-            <input
-              type="text"
-              value={conversationId}
-              onChange={(e) => setConversationId(e.target.value)}
-              className="w-full p-2 border rounded"
-              placeholder="Digite o ID da conversa..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              ID do Usuário
-            </label>
-            <input
-              type="text"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              className="w-full p-2 border rounded"
-              placeholder="Digite o ID do usuário..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mensagem
-            </label>
-            <textarea
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              className="w-full p-2 border rounded"
-              placeholder="Digite sua mensagem..."
-              rows={3}
-            />
-          </div>
-
-          <button
-            onClick={handleSendMessage}
-            disabled={isSending}
-            className={`w-full p-2 text-white rounded ${
-              isSending ? 'bg-blue-300' : 'bg-blue-500 hover:bg-blue-600'
-            }`}
+      <AnimatePresence>
+        {!isMinimized && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
           >
-            {isSending ? 'Enviando...' : 'Enviar Mensagem'}
-          </button>
-        </div>
-      )}
-    </div>
+            <div className="p-4 flex flex-col gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ID da Conversa
+                </label>
+                <input
+                  type="text"
+                  value={conversationId}
+                  onChange={(e) => setConversationId(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-full
+                    focus:ring-2 focus:ring-purple-300 focus:border-purple-300 
+                    outline-none transition-all duration-200"
+                  placeholder="Digite o ID da conversa..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ID do Usuário
+                </label>
+                <input
+                  type="text"
+                  value={userId}
+                  onChange={(e) => setUserId(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-full
+                    focus:ring-2 focus:ring-purple-300 focus:border-purple-300 
+                    outline-none transition-all duration-200"
+                  placeholder="Digite o ID do usuário..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mensagem
+                </label>
+                <textarea
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-2xl
+                    focus:ring-2 focus:ring-purple-300 focus:border-purple-300 
+                    outline-none transition-all duration-200 resize-none"
+                  placeholder="Digite sua mensagem..."
+                  rows={3}
+                />
+              </div>
+
+              <button
+                onClick={handleSendMessage}
+                disabled={isSending}
+                className={`w-full px-4 py-2 text-white rounded-full
+                  ${isSending 
+                    ? 'bg-purple-300 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-purple-900 to-purple-500 hover:opacity-90'
+                  } transition-all duration-200`}
+              >
+                {isSending ? 'Enviando...' : 'Enviar Mensagem'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
