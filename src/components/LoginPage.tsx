@@ -83,9 +83,6 @@ export function LoginPage({ clearsCredentialsAndClient }: LoginPageProps) {
 									value={userBotpressURL}
 									onChange={(event) => setUserBotpressURL(event.target.value)}
 								/>
-								<span className="text-sm text-gray-500 italic ml-2">
-									Acesse app.botpress.cloud, abra seu bot e copie o link
-								</span>
 							</label>
 
 							<label className="flex flex-col gap-1">
@@ -100,9 +97,7 @@ export function LoginPage({ clearsCredentialsAndClient }: LoginPageProps) {
 									value={userBotpressToken}
 									onChange={(event) => setUserBotpressToken(event.target.value)}
 								/>
-								<span className="text-sm text-gray-500 italic ml-2">
-									Encontre isso clicando no seu avatar no dashboard. Será salvo apenas no seu computador!
-								</span>
+
 							</label>
 
 							<button
