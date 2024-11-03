@@ -4,14 +4,23 @@ interface DisclaimerProps {
 
 export function Disclaimer({ full }: DisclaimerProps) {
 	return (
-		<p className="px-4 py-3 border-2 border-blue-300 bg-blue-100 rounded-md text-zinc-700 font-medium">
-			{full && (
-				<>
-					This is a third-party tool to see your Botpress conversations.
-					<br />
-				</>
-			)}
-			The official conversation manager is coming soon! 🔎
-		</p>
+		<div className="bg-white rounded-lg shadow-lg overflow-hidden">
+			<div className="bg-gradient-to-r from-purple-900 to-purple-500 p-4">
+				<h2 className="text-xl font-bold text-white flex items-center gap-2">
+					Aviso
+				</h2>
+			</div>
+			<div className="p-4">
+				<p className="text-gray-700">
+					{full && (
+						<>
+							Esta é uma ferramenta para visualizar suas conversas.
+							<br />
+						</>
+					)}
+					Desenvolvido por Veduc Digital
+				</p>
+			</div>
+		</div>
 	);
 }
